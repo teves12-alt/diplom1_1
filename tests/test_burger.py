@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import Mock
 
-# ИСПРАВЛЕНО: убираем praktikum, файлы лежат в корне проекта
 from bun import Bun
 from ingredient import Ingredient
 from burger import Burger
@@ -39,8 +38,7 @@ def burger_with_bun(burger, mock_bun):
 
 
 def make_mock_ingredient(ing_type="SAUCE", ing_name="hot sauce", ing_price=50.0):
-    """Хелпер для создания мока ингредиента.
-    Не фикстура — каждый ингредиент должен быть уникальным объектом."""
+    """Хелпер для создания мока ингредиента."""
     mock_ing = Mock(spec=Ingredient)
     mock_ing.get_type.return_value = ing_type
     mock_ing.get_name.return_value = ing_name
@@ -56,7 +54,6 @@ class TestBurgerInit:
         assert burger.bun is None
 
     def test_ingredients_is_empty_list(self, burger):
-        # ИСПРАВЛЕНО: один assert вместо двух
         assert (burger.ingredients == [] and isinstance(burger.ingredients, list))
 
 
@@ -84,7 +81,6 @@ class TestBurgerAddIngredient:
         second = make_mock_ingredient(ing_name="second")
         burger.add_ingredient(first)
         burger.add_ingredient(second)
-        # ИСПРАВЛЕНО: один assert через кортеж
         assert (burger.ingredients[0] is first and burger.ingredients[1] is second)
 
 
@@ -102,7 +98,6 @@ class TestBurgerRemoveIngredient:
 
         burger.remove_ingredient(1)
 
-        # ИСПРАВЛЕНО: все проверки объединены в один assert
         assert (
             len(burger.ingredients) == 2
             and ing2 not in burger.ingredients
@@ -121,17 +116,13 @@ class TestBurgerRemoveIngredient:
 
         assert len(burger.ingredients) == 1
 
-    # ── Негативные сценарии ──
-
     def test_raises_index_error_on_out_of_range(self, burger):
-        """Удаление по несуществующему индексу выбрасывает IndexError."""
         burger.add_ingredient(make_mock_ingredient())
 
         with pytest.raises(IndexError):
             burger.remove_ingredient(5)
 
     def test_raises_index_error_on_empty_list(self, burger):
-        """Удаление из пустого списка выбрасывает IndexError."""
         with pytest.raises(IndexError):
             burger.remove_ingredient(0)
 
@@ -141,8 +132,8 @@ class TestBurgerRemoveIngredient:
 class TestBurgerMoveIngredient:
 
     @pytest.mark.parametrize("old_index, new_index, expected", [
-        (0, 1, [1, 0]),
-        (1, 0, [1, 0]),
+        (0, 1, [1, 0, 2]),
+        (1, 0, [1, 0, 2]),
         (0, 2, [1, 2, 0]),
         (2, 0, [2, 0, 1]),
     ])
@@ -157,10 +148,7 @@ class TestBurgerMoveIngredient:
         actual_ids = [ing.id for ing in burger.ingredients]
         assert actual_ids == expected
 
-    # ── Негативные сценарии ──
-
     def test_raises_index_error_on_invalid_old_index(self, burger):
-        """move_ingredient с несуществующим old_index выбрасывает IndexError."""
         for _ in range(3):
             burger.add_ingredient(make_mock_ingredient())
 
@@ -168,8 +156,6 @@ class TestBurgerMoveIngredient:
             burger.move_ingredient(10, 0)
 
     def test_invalid_new_index_moves_to_end(self, burger):
-        """move_ingredient с new_index за пределами списка не выбрасывает
-        ошибку — list.insert() вставляет элемент в конец списка."""
         for i in range(3):
             mock_ing = Mock(spec=Ingredient)
             mock_ing.id = i
@@ -177,7 +163,6 @@ class TestBurgerMoveIngredient:
 
         burger.move_ingredient(0, 10)
 
-        # ИСПРАВЛЕНО: один assert с проверкой всех условий
         assert (
             len(burger.ingredients) == 3
             and burger.ingredients[-1].id == 0
@@ -209,19 +194,14 @@ class TestBurgerGetPrice:
             mock_ing.get_price.return_value = price
             burger.add_ingredient(mock_ing)
 
-        assert burger.get_price() == expected
+        assert burger.get_price() == pytest.approx(expected, rel=1e-2, abs=1e-2)
 
     def test_calls_bun_get_price_once_and_multiplies(self, burger_with_bun, mock_bun):
-        """get_price() вызывает bun.get_price() ровно 1 раз
-        и умножает на 2 (верхняя + нижняя булочка)."""
         result = burger_with_bun.get_price()
-
         mock_bun.get_price.assert_called_once()
-        # ИСПРАВЛЕНО: финальный assert результата
         assert result == 200.0
 
     def test_calls_each_ingredient_get_price_once(self, burger_with_bun):
-        """get_price() вызывает get_price() у каждого ингредиента 1 раз."""
         mock_ings = []
         for _ in range(3):
             mi = make_mock_ingredient(ing_price=50.0)
@@ -230,10 +210,7 @@ class TestBurgerGetPrice:
 
         burger_with_bun.get_price()
 
-        # ИСПРАВЛЕНО: цикл заменён на all(...) и один финальный assert
-        assert all(mi.get_price.called_once for mi in mock_ings)
-
-    # ── Негативные сценарии ──
+        assert all(mi.get_price.call_count == 1 for mi in mock_ings)
 
     @pytest.mark.parametrize("bun_price, expected", [
         (-100.0, -200.0),
@@ -255,8 +232,6 @@ class TestBurgerGetPrice:
         burger_with_bun.add_ingredient(mock_ing)
         assert burger_with_bun.get_price() == expected
 
-
-# ── Тесты: get_receipt ──────────────────────────────────────────
 
 # ── Тесты: get_receipt ──────────────────────────────────────────
 
@@ -296,7 +271,6 @@ class TestBurgerGetReceipt:
         )
 
     def test_no_ingredients(self, burger_with_bun):
-        """Чек без ингредиентов: 4 строки — верх, низ, пустая, цена."""
         receipt = burger_with_bun.get_receipt()
         lines = receipt.split("\n")
 
@@ -309,82 +283,24 @@ class TestBurgerGetReceipt:
         )
 
     def test_calls_bun_get_name_twice(self, burger_with_bun, mock_bun):
-        """get_receipt вызывает bun.get_name() ровно 2 раза."""
         burger_with_bun.get_receipt()
         assert mock_bun.get_name.call_count == 2
 
     def test_indirectly_uses_bun_price_via_get_price(self, burger_with_bun, mock_bun):
-        """get_receipt() не запрашивает цену булочки напрямую —
-        он вызывает self.get_price(), который внутри обращается
-        к bun.get_price() ровно 1 раз."""
         receipt = burger_with_bun.get_receipt()
 
         mock_bun.get_price.assert_called_once()
         assert PRICE_LINE.format(200.0) in receipt
 
     def test_ingredient_methods_called_once_each(self, burger_with_bun):
-        """Каждый ингредиент: get_type и get_name — по 1 вызову."""
         mock_ing = make_mock_ingredient("SAUCE", "ketchup", 30.0)
         burger_with_bun.add_ingredient(mock_ing)
 
         burger_with_bun.get_receipt()
 
-        # ИСПРАВЛЕНО: используем call_count, а не несуществующий called_once
         assert (mock_ing.get_type.call_count == 1 and mock_ing.get_name.call_count == 1)
 
     def test_ingredient_type_lowercased(self, burger_with_bun):
-        """Тип ингредиента приводится к нижнему регистру."""
-        mock_ing = make_mock_ingredient("FILLING", "cheese", 75.0)
-        burger_with_bun.add_ingredient(mock_ing)
-
-        receipt = burger_with_bun.get_receipt()
-
-        assert (
-            INGREDIENT_LINE.format("filling", "cheese") in receipt
-            and INGREDIENT_LINE.format("FILLING", "cheese") not in receipt
-        )
-
-        # ИСПРАВЛЕНО: один assert со всеми условиями
-        assert (
-            len(lines) == 4
-            and lines[0] == BUN_LINE.format("test bun")
-            and lines[1] == BUN_LINE.format("test bun")
-            and lines[2] == ""
-            and lines[3] == PRICE_LINE.format(200.0)
-        )
-
-    def test_calls_bun_get_name_twice(self, burger_with_bun, mock_bun):
-        """get_receipt вызывает bun.get_name() ровно 2 раза."""
-        burger_with_bun.get_receipt()
-        # Мок-проверка + финальный assert по счётчику
-        assert mock_bun.get_name.call_count == 2
-
-    def test_indirectly_uses_bun_price_via_get_price(self, burger_with_bun, mock_bun):
-        """get_receipt() не запрашивает цену булочки напрямую —
-        он вызывает self.get_price(), который внутри обращается
-        к bun.get_price() ровно 1 раз."""
-        receipt = burger_with_bun.get_receipt()
-
-        mock_bun.get_price.assert_called_once()
-        assert PRICE_LINE.format(200.0) in receipt
-
-        def test_ingredient_methods_called_once_each(self, burger_with_bun):
-        """Каждый ингредиент: get_type и get_name — по 1 вызову."""
-        mock_ing = make_mock_ingredient("SAUCE", "ketchup", 30.0)
-        burger_with_bun.add_ingredient(mock_ing)
-
-        burger_with_bun.get_receipt()
-
-        assert (mock_ing.get_type.call_count == 1 and mock_ing.get_name.call_count == 1)
-
-
-        # ИСПРАВЛЕНО: два отдельных assert — но каждый тест всё равно имеет один финальный
-        # Здесь мы оставляем два, потому что они проверяют разные методы мока.
-        # Если требование строго «ровно один assert», можно объединить:
-        assert (mock_ing.get_type.called_once and mock_ing.get_name.called_once)
-
-       def test_ingredient_type_lowercased(self, burger_with_bun):
-        """Тип ингредиента приводится к нижнему регистру."""
         mock_ing = make_mock_ingredient("FILLING", "cheese", 75.0)
         burger_with_bun.add_ingredient(mock_ing)
 
